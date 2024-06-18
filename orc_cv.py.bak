@@ -1,0 +1,90 @@
+import requests
+from docx import Document
+from docx.shared import Inches
+
+def get_altmetric_score(doi):
+    url = f"https://api.altmetric.com/v1/doi/{doi}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("score", "N/A")
+    return "N/A"
+
+def get_citation_count(doi):
+    url = f"https://api.crossref.org/works/{doi}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data["message"].get("is-referenced-by-count", 0)
+    return 0
+
+def get_oa_status(doi):
+    url = f"https://api.unpaywall.org/v2/{doi}?email=your_email@example.com"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("is_oa", False)
+    return False
+
+def get_orcid_publications(orcid_id):
+    url = f"https://pub.orcid.org/v3.0/{orcid_id}/works"
+    headers = {"Accept": "application/json"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        publications = []
+        for work in data["group"]:
+            work_summary = work["work-summary"][0]
+            publication = {
+                "title": work_summary["title"]["title"]["value"],
+                "authors": ", ".join([author["credit-name"]["value"] for author in work_summary["author"]]) if "author" in work_summary else "",
+                "journal": work_summary.get("journal-title", {}).get("value", "") if work_summary.get("journal-title") else "",
+                "year": work_summary.get("publication-date", {}).get("year", {}).get("value", ""),
+                "doi": next((external_id["external-id-value"] for external_id in work["external-ids"]["external-id"] if external_id["external-id-type"] == "doi"), None)
+            }
+            publications.append(publication)
+        return publications
+    return []
+
+# Replace 'your_orcid_id' with the actual ORCID ID
+orcid_id = "0000-0002-1360-4052"
+publications = get_orcid_publications(orcid_id)
+
+# Create a new Word document
+document = Document()
+
+# Add a title
+document.add_heading("Academic CV", 0)
+
+# Add personal information
+document.add_heading("Personal Information", level=1)
+document.add_paragraph("Name: John Doe")
+document.add_paragraph("Email: johndoe@example.com")
+document.add_paragraph("Phone: +1 123-456-7890")
+
+# Add education section
+document.add_heading("Education", level=1)
+document.add_paragraph("Ph.D. in Computer Science, University of Example, 2020")
+document.add_paragraph("M.Sc. in Computer Science, University of Example, 2018")
+
+# Add publications section
+document.add_heading("Publications", level=1)
+for pub in publications:
+    paragraph = document.add_paragraph()
+    paragraph.add_run(pub["title"]).bold = True
+    paragraph.add_run(f", {pub['authors']}, {pub['journal']}, {pub['year']}")
+
+    doi = pub["doi"]
+    if doi:
+        altmetric_score = get_altmetric_score(doi)
+        citation_count = get_citation_count(doi)
+        is_open_access = get_oa_status(doi)
+
+        paragraph.add_run(f"\nDOI: {doi}")
+        paragraph.add_run(f"\nAltmetric Score: {altmetric_score}")
+        paragraph.add_run(f"\nCitation Count: {citation_count}")
+        paragraph.add_run(f"\nOpen Access: {'Yes' if is_open_access else 'No'}")
+
+# Save the document
+document.save("academic_cv.docx")
+
