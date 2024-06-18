@@ -65,9 +65,8 @@ def get_orcid_personal_info(orcid_id):
     if response.status_code == 200:
         data = response.json()
         name = data["name"]["given-names"]["value"] + " " + data["name"]["family-name"]["value"]
-        email = next((email["email"] for email in data["emails"]["email"] if email["primary"]), "")
         orcid_url = f"https://orcid.org/{orcid_id}"
-        return name, email, orcid_url
+        return name, orcid_url
     return "", "", ""
 
 def get_orcid_education(orcid_id):
